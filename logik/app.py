@@ -30,20 +30,30 @@ COLORS = {
 }
 COLOR_IDS = list(COLORS.keys())
 
-def generate_secret(num_stones):
-    """Generuje náhodnou tajnou kombinaci."""
-    return [random.choice(COLOR_IDS) for _ in range(num_stones)]
+def generate_secret(num_stones, allow_repetition):
+    """Generuje náhodnou tajnou kombinaci s možností opakování barev."""
+    if allow_repetition:
+        return [random.choice(COLOR_IDS) for _ in range(num_stones)]
+    else:
+        if num_stones > len(COLOR_IDS):
+            raise ValueError("Nelze generovat unikátní kombinaci: příliš málo barev!")
+        return random.sample(COLOR_IDS, num_stones)
 
-def evaluate_guess(secret, guess):
-    """Vyhodnotí pokus a vrátí počet černých a bílých kamenů."""
-    n = len(secret)
-    black = sum(1 for i in range(n) if secret[i] == guess[i])
-    S_prime = [secret[i] for i in range(n) if secret[i] != guess[i]]
-    G_prime = [guess[i] for i in range(n) if secret[i] != guess[i]]
-    C_S = Counter(S_prime)
-    C_G = Counter(G_prime)
-    white = sum(min(C_S[c], C_G[c]) for c in set(C_S) & set(C_G))
-    return black, white
+def evaluate_guess(secret, guess, evaluation_mode):
+    """Vyhodnotí pokus podle zvoleného způsobu hodnocení."""
+    if evaluation_mode == "exact_position":
+        # Přesná pozice: vrací seznam [1, 0, ...] pro každou pozici
+        return [1 if secret[i] == guess[i] else 0 for i in range(len(secret))]
+    else:
+        # Bez přesné pozice: vrací počet černých a bílých kamenů
+        n = len(secret)
+        black = sum(1 for i in range(n) if secret[i] == guess[i])
+        S_prime = [secret[i] for i in range(n) if secret[i] != guess[i]]
+        G_prime = [guess[i] for i in range(n) if secret[i] != guess[i]]
+        C_S = Counter(S_prime)
+        C_G = Counter(G_prime)
+        white = sum(min(C_S[c], C_G[c]) for c in set(C_S) & set(C_G))
+        return black, white
 
 @app.route('/')
 def home():
@@ -58,9 +68,11 @@ def new_game():
         difficulty = request.form.get('difficulty')
         num_stones = 4 if difficulty == '4' else 5
         generate_random = request.form.get('generate_random') == 'on'
+        allow_repetition = request.form.get('allow_repetition') == 'yes'
+        evaluation_mode = request.form.get('evaluation_mode', 'no_position')
 
         if generate_random:
-            secret = generate_secret(num_stones)
+            secret = generate_secret(num_stones, allow_repetition)
         else:
             secret_names = request.form.getlist('secret')[:num_stones]
             secret = []
@@ -70,14 +82,19 @@ def new_game():
                     logger.error(f"Neplatná barva: {name}")
                     return jsonify({"error": "Neplatná barva! Vyberte platné barvy."}), 400
                 secret.append(id)
+            if not allow_repetition and len(set(secret)) != len(secret):
+                logger.error("Neplatná kombinace: Opakování barev není povoleno!")
+                return jsonify({"error": "Opakování barev není povoleno! Vyberte unikátní barvy."}), 400
 
         session['secret'] = secret
         session['guesses'] = []
         session['num_stones'] = num_stones
         session['game_over'] = False
+        session['allow_repetition'] = allow_repetition
+        session['evaluation_mode'] = evaluation_mode
 
         secret_names = [COLORS[id] for id in secret]
-        logger.info(f"Nová hra: obtížnost={num_stones}, generovat_náhodně={generate_random}")
+        logger.info(f"Nová hra: obtížnost={num_stones}, generovat_náhodně={generate_random}, opakování_barev={allow_repetition}, hodnocení={evaluation_mode}")
         logger.info(f"Tajná kombinace: ID={secret}, Barvy={secret_names}")
 
         return jsonify({"redirect": url_for('game')})
@@ -97,7 +114,8 @@ def game():
                          guesses=session.get('guesses', []), 
                          colors=COLORS,
                          game_over=session.get('game_over', False),
-                         secret=session.get('secret', []))
+                         secret=session.get('secret', []),
+                         evaluation_mode=session.get('evaluation_mode', 'no_position'))
 
 @app.route('/make_guess', methods=['POST'])
 def make_guess():
@@ -120,9 +138,14 @@ def make_guess():
             logger.error(f"Neplatný počet kamenů v pokusu: {len(guess)} místo {session['num_stones']}")
             return jsonify({"error": f"Vyberte přesně {session['num_stones']} barev!"}), 400
 
+        if not session.get('allow_repetition') and len(set(guess)) != len(guess):
+            logger.error("Neplatný pokus: Opakování barev není povoleno!")
+            return jsonify({"error": "Opakování barev není povoleno! Vyberte unikátní barvy."}), 400
+
         secret = session['secret']
-        black, white = evaluate_guess(secret, guess)
-        session['guesses'].append((guess, black, white))
+        evaluation_mode = session.get('evaluation_mode', 'no_position')
+        feedback = evaluate_guess(secret, guess, evaluation_mode)
+        session['guesses'].append((guess, feedback))
         
         remaining_attempts = 10 - len(session['guesses'])
         secret_names = [COLORS[id] for id in secret]
@@ -131,10 +154,15 @@ def make_guess():
         logger.info(f"Pokus č. {len(session['guesses'])}:")
         logger.info(f"Tajná kombinace: ID={secret}, Barvy={secret_names}")
         logger.info(f"Pokus hráče: ID={guess}, Barvy={guess_names}")
-        logger.info(f"Výsledek: {black} černých, {white} bílých kamenů")
+        logger.info(f"Zpětná vazba: {feedback} (hodnocení={evaluation_mode})")
         logger.info(f"Zbývající pokusy: {remaining_attempts}")
 
-        if black == len(secret):
+        if evaluation_mode == "exact_position":
+            is_win = all(x == 1 for x in feedback)
+        else:
+            is_win = feedback[0] == len(secret)  # feedback[0] je počet černých kamenů
+
+        if is_win:
             session['game_over'] = True
             logger.info(f"Hra skončila: Výhra! Tajná kombinace uhodnuta.")
             return jsonify({
@@ -142,7 +170,8 @@ def make_guess():
                 "message": f"Vyhráli jste! Tajná kombinace: {', '.join(secret_names)}",
                 "game_over": True,
                 "remaining_attempts": remaining_attempts,
-                "secret": secret
+                "secret": secret,
+                "evaluation_mode": evaluation_mode
             })
         elif len(session['guesses']) >= 10:
             session['game_over'] = True
@@ -152,7 +181,8 @@ def make_guess():
                 "message": f"Prohráli jste! Tajná kombinace: {', '.join(secret_names)}",
                 "game_over": True,
                 "remaining_attempts": remaining_attempts,
-                "secret": secret
+                "secret": secret,
+                "evaluation_mode": evaluation_mode
             })
         
         logger.info("Hra pokračuje.")
@@ -160,7 +190,8 @@ def make_guess():
             "guesses": session['guesses'],
             "game_over": False,
             "remaining_attempts": remaining_attempts,
-            "secret": []
+            "secret": [],
+            "evaluation_mode": evaluation_mode
         })
     except Exception as e:
         logger.error(f"Chyba při zpracování pokusu: {str(e)}")
