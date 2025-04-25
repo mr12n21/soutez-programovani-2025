@@ -16,7 +16,8 @@ function startNewGame(event) {
         }
     })
     .catch(error => {
-        document.getElementById('error-message').textContent = 'Chyba při spuštění hry!';
+        document.getElementById('error-message').textContent = 'Chyba při spuštění hry: ' + error.message;
+        console.error('Chyba:', error);
     });
 }
 
@@ -36,7 +37,6 @@ function submitGuess(event) {
             return;
         }
         
-        // Aktualizace tabulky s pokusy
         const table = document.getElementById('guesses-table');
         table.innerHTML = '';
         data.guesses.forEach(([guess, black, white]) => {
@@ -49,7 +49,7 @@ function submitGuess(event) {
                 row.appendChild(cell);
             });
             const feedbackCell = document.createElement('td');
-            feedbackCell.class GROWTH='feedback';
+            feedbackCell.className = 'feedback';
             for (let i = 0; i < black; i++) {
                 const peg = document.createElement('div');
                 peg.className = 'peg black';
@@ -64,10 +64,8 @@ function submitGuess(event) {
             table.appendChild(row);
         });
 
-        // Aktualizace zbývajících pokusů
         document.getElementById('remaining-attempts').textContent = data.remaining_attempts;
 
-        // Zobrazení tajné kombinace po ukončení hry
         if (data.game_over) {
             document.getElementById('game-message').textContent = data.message;
             document.getElementById('guess-form').style.display = 'none';
@@ -88,11 +86,11 @@ function submitGuess(event) {
         }
     })
     .catch(error => {
-        document.getElementById('game-message').textContent = 'Chyba při odeslání pokusu!';
+        document.getElementById('game-message').textContent = 'Chyba při odeslání pokusu: ' + error.message;
+        console.error('Chyba:', error);
     });
 }
 
-// Definice barev pro JavaScript (synchronizováno s Pythonem)
 const COLORS = {
     1: "červená",
     2: "modrá",
@@ -102,23 +100,32 @@ const COLORS = {
     6: "azurová"
 };
 
-// Dynamické přizpůsobení vstupů na domovské stránce
 document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('new-game-form');
+    if (form) {
+        form.addEventListener('submit', startNewGame);
+    }
+
+    const guessForm = document.getElementById('guess-form');
+    if (guessForm) {
+        guessForm.addEventListener('submit', submitGuess);
+    }
+
     const difficultySelect = document.getElementById('difficulty');
     const generateRandomCheckbox = document.getElementById('generate_random');
     const manualInputDiv = document.getElementById('manual_input');
     const secretInputs = document.getElementsByClassName('secret_select');
 
-    function updateInputs() {
-        const numStones = difficultySelect.value == '4' ? 4 : 5;
-        for (let i = 0; i < secretInputs.length; i++) {
-            secretInputs[i].style.display = i < numStones ? 'inline' : 'none';
-            secretInputs[i].required = i < numStones;
+    if (difficultySelect && generateRandomCheckbox && manualInputDiv) {
+        function updateInputs() {
+            const numStones = difficultySelect.value === '4' ? 4 : 5;
+            for (let i = 0; i < secretInputs.length; i++) {
+                secretInputs[i].style.display = i < numStones ? 'inline-block' : 'none';
+                secretInputs[i].required = i < numStones && !generateRandomCheckbox.checked;
+            }
+            manualInputDiv.style.display = generateRandomCheckbox.checked ? 'none' : 'block';
         }
-        manualInputDiv.style.display = generateRandomCheckbox.checked ? 'none' : 'block';
-    }
 
-    if (difficultySelect) {
         difficultySelect.addEventListener('change', updateInputs);
         generateRandomCheckbox.addEventListener('change', updateInputs);
         updateInputs();
