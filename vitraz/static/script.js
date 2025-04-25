@@ -13,11 +13,11 @@ document.getElementById('upload-form').addEventListener('submit', function(e) {
         body: formData
     })
     .then(response => {
-        console.log('HTTP status:', response.status);
+        console.log('HTTP status:', response.status); // Debug log
         return response.json();
     })
     .then(data => {
-        console.log('Odpověď od backendu:', data);
+        console.log('Odpověď od backendu:', data); // Debug log
 
         if (data.error) {
             document.getElementById('error-message').textContent = data.error;
@@ -25,10 +25,12 @@ document.getElementById('upload-form').addEventListener('submit', function(e) {
             return;
         }
 
+        // Uložení dat z odpovědi
         pieces = data.pieces || [];
         colorGroups = data.color_groups || {};
         originalImage.src = data.image_path || '';
 
+        // Zobrazení obsahu pokud jsou data platná
         if (pieces.length === 0) {
             document.getElementById('error-message').textContent = 'Žádná sklíčka nenalezena.';
             return;
@@ -40,7 +42,7 @@ document.getElementById('upload-form').addEventListener('submit', function(e) {
         }
 
         originalImage.onload = function() {
-            console.log('Obrázek načten:', originalImage.src);
+            console.log('Obrázek načten:', originalImage.src); // Debug log
             document.getElementById('content').style.display = 'block';
             setupCanvases();
             displayInfo();
@@ -69,6 +71,7 @@ function setupCanvases() {
         return;
     }
 
+    // Nastavení rozměrů plátna
     originalCanvas.width = originalImage.width;
     originalCanvas.height = originalImage.height;
     workspaceCanvas.width = originalImage.width;
@@ -76,11 +79,14 @@ function setupCanvases() {
     previewCanvas.width = originalImage.width;
     previewCanvas.height = originalImage.height;
 
+    // Přidání událostí
     originalCanvas.addEventListener('mousemove', highlightPieces);
-    workspaceCanvas.addEventListener('mousedown', startDragging);
+    originalCanvas.addEventListener('mousedown', startDragging); // Kliknutí na original-canvas
     workspaceCanvas.addEventListener('mousemove', dragPiece);
     workspaceCanvas.addEventListener('mouseup', stopDragging);
     previewCanvas.addEventListener('mousemove', updatePreview);
+
+    console.log('Plátna nastavena, rozměry:', originalCanvas.width, 'x', originalCanvas.height);
 }
 
 function displayInfo() {
@@ -105,7 +111,7 @@ function displayInfo() {
         });
         colorGroupsDiv.appendChild(groupDiv);
     }
-    console.log('Informace o barvách zobrazeny:', colorGroups);
+    console.log('Informace o barvách zobrazeny:', colorGroups); // Debug log
 }
 
 function drawOriginal(highlightColor = null) {
@@ -151,41 +157,25 @@ function highlightPieces(e) {
     drawOriginal(highlightColor);
 }
 
-function replaceColor(pieceId) {
-    const newColor = prompt('Zadejte novou barvu z katalogu (např. aqua, red):');
-    if (!newColor || !Object.keys(COLOR_CATALOG).includes(newColor)) {
-        alert('Neplatná barva! Vyberte z katalogu (např. aqua, red).');
-        return;
-    }
-
-    fetch('/replace_color', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, new_color: newColor })
-    })
-    .then(response => response.json())
-    .then(data => {
-        pieces = data.pieces || [];
-        colorGroups = data.color_groups || {};
-        displayInfo();
-        drawOriginal();
-    })
-    .catch(error => {
-        console.error('Chyba při náhradě barvy:', error);
-        document.getElementById('error-message').textContent = 'Chyba při náhradě barvy: ' + error.message;
-    });
-}
-
 let draggedPiece = null;
 let offsetX, offsetY, rotation = 0;
 
 function startDragging(e) {
-    const canvas = document.getElementById('workspace-canvas');
+    const canvas = document.getElementById('original-canvas');
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    console.log('Kliknuto na original-canvas, souřadnice:', x, y); // Debug log
+
     draggedPiece = null;
+
+    // Nejprve zkontrolujeme, zda přetahujeme již existující sklíčko na workspace-canvas
+    const workspaceCanvas = document.getElementById('workspace-canvas');
+    const workspaceRect = workspaceCanvas.getBoundingClientRect();
+    const workspaceX = e.clientX - workspaceRect.left;
+    const workspaceY = e.clientY - workspaceRect.top;
+
     for (const piece of workspacePieces) {
         const path = new Path2D();
         piece.contour.forEach((point, idx) => {
@@ -193,15 +183,17 @@ function startDragging(e) {
             else path.lineTo(point.x, point.y);
         });
         path.closePath();
-        const ctx = canvas.getContext('2d');
-        if (ctx.isPointInPath(path, x, y)) {
+        const ctx = workspaceCanvas.getContext('2d');
+        if (ctx.isPointInPath(path, workspaceX, workspaceY)) {
             draggedPiece = piece;
-            offsetX = x - piece.x;
-            offsetY = y - piece.y;
+            offsetX = workspaceX - piece.x;
+            offsetY = workspaceY - piece.y;
+            console.log('Přetahuje se existující sklíčko:', piece.id); // Debug log
             break;
         }
     }
 
+    // Pokud nepřetahujeme existující sklíčko, přidáme nové z original-canvas
     if (!draggedPiece) {
         for (const piece of pieces) {
             const path = new Path2D();
@@ -210,28 +202,31 @@ function startDragging(e) {
                 else path.lineTo(point[0], point[1]);
             });
             path.closePath();
-            const ctx = document.getElementById('original-canvas').getContext('2d');
+            const ctx = canvas.getContext('2d');
             if (ctx.isPointInPath(path, x, y)) {
                 draggedPiece = {
                     id: piece.id,
                     contour: piece.contour.map(pt => ({x: pt[0], y: pt[1]})),
                     color: piece.catalog_rgb,
-                    x: x,
-                    y: y,
+                    x: workspaceCanvas.width / 2, // Umístíme na střed pracovní plochy
+                    y: workspaceCanvas.height / 2,
                     rotation: 0
                 };
-                offsetX = x - draggedPiece.x;
-                offsetY = y - draggedPiece.y;
+                offsetX = 0;
+                offsetY = 0;
                 workspacePieces.push(draggedPiece);
+                console.log('Nové sklíčko přidáno do workspacePieces:', draggedPiece); // Debug log
                 break;
             }
         }
     }
+
     drawWorkspace();
 }
 
 function dragPiece(e) {
     if (!draggedPiece) return;
+
     const canvas = document.getElementById('workspace-canvas');
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -239,6 +234,7 @@ function dragPiece(e) {
 
     draggedPiece.x = x - offsetX;
     draggedPiece.y = y - offsetY;
+    console.log('Přetahování sklíčka, nová pozice:', draggedPiece.x, draggedPiece.y); // Debug log
     drawWorkspace();
 }
 
@@ -246,6 +242,7 @@ function stopDragging() {
     if (draggedPiece) {
         if (confirm('Otočit sklíčko o 90°?')) {
             draggedPiece.rotation = (draggedPiece.rotation + 90) % 360;
+            console.log('Sklíčko otočeno, rotace:', draggedPiece.rotation); // Debug log
         }
     }
     draggedPiece = null;
@@ -270,12 +267,98 @@ function drawWorkspace() {
         ctx.fillStyle = `rgb(${piece.color[0]},${piece.color[1]},${piece.color[2]})`;
         ctx.fill();
         ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2; // Silnější okraje pro lepší viditelnost
         ctx.stroke();
         ctx.restore();
     });
+
+    console.log('Počet sklíček na workspace:', workspacePieces.length); // Debug log
+}
+
+function replaceColor(pieceId) {
+    // Vytvoříme dialog pro výběr barvy
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    modal.style.zIndex = '1000';
+
+    const modalContent = document.createElement('div');
+    modalContent.style.backgroundColor = '#fff';
+    modalContent.style.margin = '15% auto';
+    modalContent.style.padding = '20px';
+    modalContent.style.width = '300px';
+    modalContent.style.borderRadius = '5px';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Vyberte novou barvu:';
+    modalContent.appendChild(title);
+
+    const select = document.createElement('select');
+    select.id = 'color-select';
+    for (const [colorName, rgb] of Object.entries(COLOR_CATALOG)) {
+        const option = document.createElement('option');
+        option.value = colorName;
+        option.textContent = colorName;
+        option.style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+        select.appendChild(option);
+    }
+    modalContent.appendChild(select);
+
+    const buttonDiv = document.createElement('div');
+    buttonDiv.style.marginTop = '20px';
+
+    const confirmButton = document.createElement('button');
+    confirmButton.textContent = 'Potvrdit';
+    confirmButton.style.marginRight = '10px';
+    confirmButton.addEventListener('click', () => {
+        const newColor = document.getElementById('color-select').value;
+        fetch('/replace_color', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ piece_id: pieceId, new_color: newColor })
+        })
+        .then(response => response.json())
+        .then(data => {
+            pieces = data.pieces || [];
+            colorGroups = data.color_groups || {};
+            displayInfo();
+            drawOriginal();
+            drawWorkspace(); // Aktualizace pracovní plochy
+            document.body.removeChild(modal);
+        })
+        .catch(error => {
+            console.error('Chyba při náhradě barvy:', error);
+            document.getElementById('error-message').textContent = 'Chyba při náhradě barvy: ' + error.message;
+            document.body.removeChild(modal);
+        });
+    });
+    buttonDiv.appendChild(confirmButton);
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Zrušit';
+    cancelButton.addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    buttonDiv.appendChild(cancelButton);
+
+    modalContent.appendChild(buttonDiv);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
 }
 
 document.getElementById('save-plan').addEventListener('click', function() {
+    console.log('Ukládání řezacího plánu, workspacePieces:', workspacePieces); // Debug log
+    if (workspacePieces.length === 0) {
+        alert('Žádná sklíčka nejsou na pracovní ploše! Přetáhněte sklíčka na pracovní plochu a poté uložte plán.');
+        return;
+    }
+
     fetch('/save_plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -329,6 +412,7 @@ function drawPreview(replicaPath = null) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Původní vitráž vlevo
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, previewSplitX, canvas.height);
@@ -336,6 +420,7 @@ function drawPreview(replicaPath = null) {
     ctx.drawImage(originalImage, 0, 0);
     ctx.restore();
 
+    // Replika vpravo
     if (replicaPath) {
         const replicaImage = new Image();
         replicaImage.src = replicaPath;

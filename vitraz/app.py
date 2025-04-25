@@ -83,18 +83,18 @@ def analyze_image(image_path):
     # Krok 2: Převod na HSV a detekce černých oblastí
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     lower_black = np.array([0, 0, 0])
-    upper_black = np.array([180, 255, 30])  # Prah pro černou barvu
+    upper_black = np.array([180, 255, 20])  # Snížený práh pro černou barvu
     black_mask = cv2.inRange(hsv, lower_black, upper_black)
 
     # Krok 3: Redukce šumu a detekce hran
     blurred = cv2.bilateralFilter(gray, 9, 75, 75)
-    edges = cv2.Canny(blurred, 50, 150)
+    edges = cv2.Canny(blurred, 30, 100)  # Nižší prahy pro citlivější detekci hran
 
     # Kombinace Canny hran s maskou černých oblastí
     edges = cv2.bitwise_and(edges, edges, mask=black_mask)
 
     # Krok 4: Morfologické operace pro spojení černých čar
-    kernel = np.ones((7, 7), np.uint8)  # Větší kernel pro spojení přerušených čar
+    kernel = np.ones((5, 5), np.uint8)  # Menší kernel pro přesnější detekci
     dilated = cv2.dilate(edges, kernel, iterations=3)
     eroded = cv2.erode(dilated, kernel, iterations=1)
 
@@ -109,7 +109,7 @@ def analyze_image(image_path):
 
     # Krok 6: Vytvoření markerů pro watershed
     dist_transform = cv2.distanceTransform(eroded, cv2.DIST_L2, 5)
-    _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+    _, sure_fg = cv2.threshold(dist_transform, 0.5 * dist_transform.max(), 255, 0)  # Nižší práh pro více markerů
     sure_fg = np.uint8(sure_fg)
 
     sure_bg = cv2.dilate(eroded, kernel, iterations=3)
@@ -138,7 +138,7 @@ def analyze_image(image_path):
         # Vytvoříme masku pro dané sklíčko
         mask = (markers == label).astype(np.uint8) * 255
         area = cv2.countNonZero(mask)
-        if area < 200:  # Zvýšený práh pro ignorování malých oblastí
+        if area < 100:  # Snížený práh pro zachycení menších sklíček
             continue
 
         # Najdeme průměrnou barvu sklíčka
@@ -147,7 +147,7 @@ def analyze_image(image_path):
         mean_color = tuple(int(c) for c in mean_color)
 
         # Ignorujeme černé ohraničení (RGB blízké černé)
-        if all(c < 20 for c in mean_color):
+        if all(c < 15 for c in mean_color):
             continue
 
         # Najdeme konturu sklíčka
@@ -263,7 +263,6 @@ def replace_color():
                 piece['catalog_rgb'] = COLOR_CATALOG[new_color]
                 break
 
-        # Aktualizace color_groups
         color_groups = {}
         total_area = session_data['image_shape'][0] * session_data['image_shape'][1]
         for piece in pieces:
@@ -278,7 +277,7 @@ def replace_color():
         session_data['pieces'] = pieces
         session_data['color_groups'] = color_groups
 
-        # Převod na JSON-serializovatelné typy
+        #prevod na json serializovaneho typu
         session_data = convert_to_json_serializable(session_data)
 
         with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'w') as f:
@@ -296,6 +295,7 @@ def save_plan():
     try:
         data = request.get_json()
         plan = data['plan']
+        logger.info(f"Přijatý řezací plán: {plan}") #log pro debug
         plan = convert_to_json_serializable(plan)
         plan_path = os.path.join(app.config['OUTPUT_FOLDER'], 'cutting_plan.json')
         with open(plan_path, 'w') as f:
