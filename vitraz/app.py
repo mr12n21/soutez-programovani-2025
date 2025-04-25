@@ -41,6 +41,20 @@ COLOR_CATALOG = {
     "silver": (192, 192, 192)
 }
 
+def convert_to_json_serializable(obj):
+    """Převede NumPy typy na standardní Python typy pro JSON serializaci."""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (list, tuple)):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    return obj
+
 def find_closest_color(rgb):
     """Najde nejbližší barvu z katalogu podle Euklidovské vzdálenosti."""
     min_dist = float('inf')
@@ -54,38 +68,90 @@ def find_closest_color(rgb):
 
 def analyze_image(image_path):
     """Analyzuje obrázek vitráže a vrátí informace o sklíčkách."""
+    # Načtení obrázku
     img = cv2.imread(image_path)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    total_area = img.shape[0] * img.shape[1]
-    pieces = []
-    color_groups = {}
+    # Krok 1: Detekce černého ohraničení pomocí adaptivního prahování
+    thresh = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2
+    )
 
+    # Krok 2: Morfologické operace pro zesílení černých čar
+    kernel = np.ones((3, 3), np.uint8)
+    dilated = cv2.dilate(thresh, kernel, iterations=2)
+
+    # Krok 3: Najdeme vnější hranici vitráže (největší černý obdélník)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        raise ValueError("Nepodařilo se najít vnější hranici vitráže!")
+
+    # Největší kontura = vnější hranice vitráže
+    outer_contour = max(contours, key=cv2.contourArea)
+    mask_outer = np.zeros_like(gray)
+    cv2.drawContours(mask_outer, [outer_contour], -1, 255, -1)
+
+    # Krok 4: Detekce vnitřních čar (ohraničení sklíček)
+    edges = cv2.Canny(dilated, 30, 100)
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Krok 5: Segmentace sklíček pomocí watershed algoritmu
+    # Vytvoříme marker pro watershed
+    markers = np.zeros_like(gray, dtype=np.int32)
     for idx, contour in enumerate(contours):
         area = cv2.contourArea(contour)
-        if area < 100:  # Ignoruj malé kontury
+        if area < 50:  # Ignorujeme příliš malé kontury (šum)
+            continue
+        cv2.drawContours(markers, [contour], -1, (idx + 1), -1)
+
+    # Aplikujeme watershed
+    cv2.watershed(img_rgb, markers)
+    boundaries = (markers == -1).astype(np.uint8) * 255
+
+    # Krok 6: Identifikace jednotlivých sklíček
+    pieces = []
+    color_groups = {}
+    total_area = img.shape[0] * img.shape[1]
+
+    unique_labels = np.unique(markers)
+    for label in unique_labels:
+        if label <= 0:  # Ignorujeme pozadí a hranice
             continue
 
-        mask = np.zeros_like(img_rgb)
-        cv2.drawContours(mask, [contour], -1, (255, 255, 255), -1)
-        mean_color = cv2.mean(img_rgb, mask=cv2.cvtColor(mask, cv2.COLOR_RGB2GRAY))[:3]
-        mean_color = tuple(int(c) for c in mean_color)
+        # Vytvoříme masku pro dané sklíčko
+        mask = (markers == label).astype(np.uint8) * 255
+        area = cv2.countNonZero(mask)
+        if area < 50:  # Ignorujeme příliš malé oblasti
+            continue
 
-        # Najdi nejbližší barvu z katalogu
+        # Najdeme průměrnou barvu sklíčka
+        masked_rgb = cv2.bitwise_and(img_rgb, img_rgb, mask=mask)
+        mean_color = cv2.mean(masked_rgb, mask=mask)[:3]
+        mean_color = tuple(int(c) for c in mean_color if c > 0)  # Ignorujeme černou (0,0,0)
+
+        # Ignorujeme černé ohraničení
+        if mean_color == (0, 0, 0):
+            continue
+
+        # Najdeme konturu sklíčka
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+        contour = contours[0]
+
+        # Najdeme nejbližší barvu z katalogu
         catalog_color_name, catalog_rgb = find_closest_color(mean_color)
         percent_area = (area / total_area) * 100
 
         piece = {
-            "id": idx,
-            "area": area,
+            "id": int(label),  # Převod na int
+            "area": int(area),  # Převod na int
             "percent_area": round(percent_area, 2),
             "original_rgb": mean_color,
             "catalog_color": catalog_color_name,
             "catalog_rgb": catalog_rgb,
-            "contour": contour.tolist()
+            "contour": contour.tolist()  # Převod na seznam
         }
         pieces.append(piece)
 
@@ -98,6 +164,13 @@ def analyze_image(image_path):
     # Aktualizace procentuální plochy pro skupiny
     for color, group in color_groups.items():
         group["percent_area"] = round((group["total_area"] / total_area) * 100, 2)
+
+    if not pieces:
+        raise ValueError("Žádná sklíčka nenalezena!")
+
+    # Převod na JSON-serializovatelné typy
+    pieces = convert_to_json_serializable(pieces)
+    color_groups = convert_to_json_serializable(color_groups)
 
     return pieces, color_groups, img_rgb
 
@@ -139,6 +212,9 @@ def upload():
             "color_groups": color_groups,
             "image_shape": img_rgb.shape[:2]
         }
+
+        # Převod na JSON-serializovatelné typy
+        session_data = convert_to_json_serializable(session_data)
 
         with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'w') as f:
             json.dump(session_data, f)
@@ -186,6 +262,9 @@ def replace_color():
         session_data['pieces'] = pieces
         session_data['color_groups'] = color_groups
 
+        # Převod na JSON-serializovatelné typy
+        session_data = convert_to_json_serializable(session_data)
+
         with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'w') as f:
             json.dump(session_data, f)
 
@@ -201,6 +280,7 @@ def save_plan():
     try:
         data = request.get_json()
         plan = data['plan']
+        plan = convert_to_json_serializable(plan)  # Převod na JSON-serializovatelné typy
         plan_path = os.path.join(app.config['OUTPUT_FOLDER'], 'cutting_plan.json')
         with open(plan_path, 'w') as f:
             json.dump(plan, f)
