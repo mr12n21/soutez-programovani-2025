@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Logik - Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Logik - Admin</h1>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    {% if secret %}
+    <div id="secret-combination">
+        <strong>Tajná kombinace:</strong>
+        {% for color_id in secret %}
+        <div class="stone color-{{ colors[color_id] | lower }}"></div>
+        {% endfor %}
+        <p>{{ secret_names | join(', ') }}</p>
+    </div>
+    {% else %}
+    <form method="POST">
+        <label>Zadejte heslo:</label>
+        <input type="password" name="password" required>
+        <button type="submit">Zobrazit tajnou kombinaci</button>
+    </form>
+    {% endif %}
+    <a href="/">Zpět na domovskou stránku</a>
+</body>
+</html>
