@@ -16,22 +16,41 @@
         <div id="manual_input" style="display:none;">
             <label>Zadejte tajnou kombinaci:</label><br>
             <div id="secret_inputs">
-                {% for _ in range(5) %}
+                <select name="secret" class="secret_select" required>
+                    <option value="" disabled selected>Vyberte barvu</option>
+                    {% for id, color in colors.items() %}
+                    <option value="{{ color }}">{{ color }}</option>
+                    {% endfor %}
+                </select>
+                <select name="secret" class="secret_select" required>
+                    <option value="" disabled selected>Vyberte barvu</option>
+                    {% for id, color in colors.items() %}
+                    <option value="{{ color }}">{{ color }}</option>
+                    {% endfor %}
+                </select>
+                <select name="secret" class="secret_select" required>
+                    <option value="" disabled selected>Vyberte barvu</option>
+                    {% for id, color in colors.items() %}
+                    <option value="{{ color }}">{{ color }}</option>
+                    {% endfor %}
+                </select>
+                <select name="secret" class="secret_select" required>
+                    <option value="" disabled selected>Vyberte barvu</option>
+                    {% for id, color in colors.items() %}
+                    <option value="{{ color }}">{{ color }}</option>
+                    {% endfor %}
+                </select>
                 <select name="secret" class="secret_select">
                     <option value="" disabled selected>Vyberte barvu</option>
                     {% for id, color in colors.items() %}
                     <option value="{{ color }}">{{ color }}</option>
                     {% endfor %}
                 </select>
-                {% endfor %}
             </div>
         </div>
         <button type="submit">Spustit hru</button>
     </form>
     <div id="error-message" class="error"></div>
     <script src="/static/script.js"></script>
-    <script>
-        document.getElementById('new-game-form').addEventListener('submit', startNewGame);
-    </script>
 </body>
 </html>

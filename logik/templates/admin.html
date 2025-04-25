@@ -15,7 +15,7 @@
         {% for color_id in secret %}
         <div class="stone color-{{ colors[color_id] | lower }}"></div>
         {% endfor %}
-        <p>{{ ', '.join(colors[id] for id in secret) }}</p>
+        <p>{{ secret_names | join(', ') }}</p>
     </div>
     {% else %}
     <form method="POST">

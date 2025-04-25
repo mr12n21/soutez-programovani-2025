@@ -16,10 +16,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Admin heslo (pro jednoduchost pevně nastavené)
+# Admin heslo
 ADMIN_PASSWORD = "admin123"
 
-# Definice barev: ID (1-6) mapováno na názvy barev
+# Definice barev
 COLORS = {
     1: "červená",
     2: "modrá",
@@ -28,10 +28,10 @@ COLORS = {
     5: "fialová",
     6: "azurová"
 }
-COLOR_IDS = list(COLORS.keys())  # [1, 2, 3, 4, 5, 6]
+COLOR_IDS = list(COLORS.keys())
 
 def generate_secret(num_stones):
-    """Generuje náhodnou tajnou kombinaci pomocí ID barev."""
+    """Generuje náhodnou tajnou kombinaci."""
     return [random.choice(COLOR_IDS) for _ in range(num_stones)]
 
 def evaluate_guess(secret, guess):
@@ -47,45 +47,51 @@ def evaluate_guess(secret, guess):
 
 @app.route('/')
 def home():
-    """Domovská stránka s formulářem pro nastavení hry."""
+    """Domovská stránka."""
+    logger.info("Navštívena domovská stránka.")
     return render_template('home.html', colors=COLORS)
 
 @app.route('/new_game', methods=['POST'])
 def new_game():
-    """Spustí novou hru podle zadaných parametrů."""
-    difficulty = request.form['difficulty']
-    num_stones = 4 if difficulty == '4' else 5
-    generate_random = request.form.get('generate_random', 'on') == 'on'
-    
-    if generate_random:
-        secret = generate_secret(num_stones)
-    else:
-        try:
+    """Spustí novou hru."""
+    try:
+        difficulty = request.form.get('difficulty')
+        num_stones = 4 if difficulty == '4' else 5
+        generate_random = request.form.get('generate_random') == 'on'
+
+        if generate_random:
+            secret = generate_secret(num_stones)
+        else:
             secret_names = request.form.getlist('secret')[:num_stones]
-            secret = [next(id for id, name in COLORS.items() if name == color_name) 
-                     for color_name in secret_names]
-            if not all(id in COLOR_IDS for id in secret):
-                return jsonify({"error": "Neplatná kombinace! Vyberte platné barvy."}), 400
-        except (ValueError, StopIteration):
-            return jsonify({"error": "Neplatný vstup! Vyberte platné barvy."}), 400
+            secret = []
+            for name in secret_names:
+                id = next((id for id, color in COLORS.items() if color == name), None)
+                if id is None:
+                    logger.error(f"Neplatná barva: {name}")
+                    return jsonify({"error": "Neplatná barva! Vyberte platné barvy."}), 400
+                secret.append(id)
 
-    session['secret'] = secret
-    session['guesses'] = []
-    session['num_stones'] = num_stones
-    session['game_over'] = False
+        session['secret'] = secret
+        session['guesses'] = []
+        session['num_stones'] = num_stones
+        session['game_over'] = False
 
-    # Logování nové hry
-    secret_names = [COLORS[id] for id in secret]
-    logger.info(f"Nová hra: obtížnost={num_stones} kamenů, generovat_náhodně={generate_random}")
-    logger.info(f"Tajná kombinace: ID={secret}, Barvy={secret_names}")
+        secret_names = [COLORS[id] for id in secret]
+        logger.info(f"Nová hra: obtížnost={num_stones}, generovat_náhodně={generate_random}")
+        logger.info(f"Tajná kombinace: ID={secret}, Barvy={secret_names}")
 
-    return jsonify({"redirect": url_for('game')})
+        return jsonify({"redirect": url_for('game')})
+    except Exception as e:
+        logger.error(f"Chyba při vytváření hry: {str(e)}")
+        return jsonify({"error": "Chyba při vytváření hry! Zkuste znovu."}), 500
 
 @app.route('/game')
 def game():
     """Zobrazí herní plochu."""
     if 'secret' not in session:
+        logger.warning("Přístup k /game bez aktivní hry.")
         return redirect(url_for('home'))
+    logger.info("Navštívena herní stránka.")
     return render_template('game.html', 
                          num_stones=session['num_stones'], 
                          guesses=session.get('guesses', []), 
@@ -95,62 +101,70 @@ def game():
 
 @app.route('/make_guess', methods=['POST'])
 def make_guess():
-    """Zpracuje pokus hráče přes AJAX."""
+    """Zpracuje pokus hráče."""
     if session.get('game_over', False):
+        logger.warning("Pokus odeslat pokus po ukončení hry.")
         return jsonify({"error": "Hra již skončila! Spusťte novou hru."}), 400
 
     try:
         guess_names = request.form.getlist('guess')
-        guess = [next(id for id, name in COLORS.items() if name == color_name) 
-                for color_name in guess_names]
-        if len(guess) != session['num_stones'] or not all(id in COLOR_IDS for id in guess):
-            return jsonify({"error": "Neplatný pokus! Vyberte platné barvy."}), 400
-    except (ValueError, StopIteration):
-        return jsonify({"error": "Neplatný vstup! Vyberte platné barvy."}), 400
+        guess = []
+        for name in guess_names:
+            id = next((id for id, color in COLORS.items() if color == name), None)
+            if id is None:
+                logger.error(f"Neplatná barva v pokusu: {name}")
+                return jsonify({"error": "Neplatná barva! Vyberte platné barvy."}), 400
+            guess.append(id)
 
-    secret = session['secret']
-    black, white = evaluate_guess(secret, guess)
-    session['guesses'].append((guess, black, white))
-    
-    remaining_attempts = 10 - len(session['guesses'])
-    secret_names = [COLORS[id] for id in secret]
-    guess_names = [COLORS[id] for id in guess]
+        if len(guess) != session['num_stones']:
+            logger.error(f"Neplatný počet kamenů v pokusu: {len(guess)} místo {session['num_stones']}")
+            return jsonify({"error": f"Vyberte přesně {session['num_stones']} barev!"}), 400
 
-    # Logování pokusu
-    logger.info(f"Pokus č. {len(session['guesses'])}:")
-    logger.info(f"Tajná kombinace: ID={secret}, Barvy={secret_names}")
-    logger.info(f"Pokus hráče: ID={guess}, Barvy={guess_names}")
-    logger.info(f"Výsledek: {black} černých, {white} bílých kamenů")
-    logger.info(f"Zbývající pokusy: {remaining_attempts}")
+        secret = session['secret']
+        black, white = evaluate_guess(secret, guess)
+        session['guesses'].append((guess, black, white))
+        
+        remaining_attempts = 10 - len(session['guesses'])
+        secret_names = [COLORS[id] for id in secret]
+        guess_names = [COLORS[id] for id in guess]
 
-    if black == len(secret):
-        session['game_over'] = True
-        logger.info(f"Hra skončila: Výhra! Tajná kombinace uhodnuta.")
+        logger.info(f"Pokus č. {len(session['guesses'])}:")
+        logger.info(f"Tajná kombinace: ID={secret}, Barvy={secret_names}")
+        logger.info(f"Pokus hráče: ID={guess}, Barvy={guess_names}")
+        logger.info(f"Výsledek: {black} černých, {white} bílých kamenů")
+        logger.info(f"Zbývající pokusy: {remaining_attempts}")
+
+        if black == len(secret):
+            session['game_over'] = True
+            logger.info(f"Hra skončila: Výhra! Tajná kombinace uhodnuta.")
+            return jsonify({
+                "guesses": session['guesses'],
+                "message": f"Vyhráli jste! Tajná kombinace: {', '.join(secret_names)}",
+                "game_over": True,
+                "remaining_attempts": remaining_attempts,
+                "secret": secret
+            })
+        elif len(session['guesses']) >= 10:
+            session['game_over'] = True
+            logger.info(f"Hra skončila: Prohra! Vyčerpáno 10 pokusů.")
+            return jsonify({
+                "guesses": session['guesses'],
+                "message": f"Prohráli jste! Tajná kombinace: {', '.join(secret_names)}",
+                "game_over": True,
+                "remaining_attempts": remaining_attempts,
+                "secret": secret
+            })
+        
+        logger.info("Hra pokračuje.")
         return jsonify({
             "guesses": session['guesses'],
-            "message": f"Vyhráli jste! Tajná kombinace: {', '.join(secret_names)}",
-            "game_over": True,
+            "game_over": False,
             "remaining_attempts": remaining_attempts,
-            "secret": secret
+            "secret": []
         })
-    elif len(session['guesses']) >= 10:
-        session['game_over'] = True
-        logger.info(f"Hra skončila: Prohra! Vyčerpáno 10 pokusů.")
-        return jsonify({
-            "guesses": session['guesses'],
-            "message": f"Prohráli jste! Tajná kombinace: {', '.join(secret_names)}",
-            "game_over": True,
-            "remaining_attempts": remaining_attempts,
-            "secret": secret
-        })
-    
-    logger.info("Hra pokračuje.")
-    return jsonify({
-        "guesses": session['guesses'],
-        "game_over": False,
-        "remaining_attempts": remaining_attempts,
-        "secret": []
-    })
+    except Exception as e:
+        logger.error(f"Chyba při zpracování pokusu: {str(e)}")
+        return jsonify({"error": "Chyba při zpracování pokusu! Zkuste znovu."}), 500
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
@@ -165,11 +179,12 @@ def admin():
             secret = session['secret']
             secret_names = [COLORS[id] for id in secret]
             logger.info(f"Úspěšný přístup k /admin: Tajná kombinace: ID={secret}, Barvy={secret_names}")
-            return render_template('admin.html', secret=secret, colors=COLORS)
+            return render_template('admin.html', secret=secret, colors=COLORS, secret_names=secret_names)
         else:
             logger.warning("Neúspěšný pokus o přístup k /admin: Špatné heslo.")
             return render_template('admin.html', error="Špatné heslo!", colors=COLORS)
 
+    logger.info("Navštívena stránka /admin (GET).")
     return render_template('admin.html', colors=COLORS)
 
 if __name__ == '__main__':
