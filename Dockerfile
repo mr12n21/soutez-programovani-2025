@@ -1,14 +1,15 @@
-FROM python:3.11
+FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY . /app
+# Zkopíruj requirements.txt z lokální složky do kontejneru
+COPY app/requirements.txt /app/
 
-RUN python -m venv venv \
-    && . venv/bin/activate \
-    && pip install --upgrade pip \
-    && pip install -r requirements.txt
+# Nainstaluj závislosti
+RUN pip install -r requirements.txt
 
-EXPOSE 8000
+# Zkopíruj zbytek aplikace
+COPY app /app/
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "wsgi:app"]
+# Spusť aplikaci pomocí Gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
