@@ -1,8 +1,0 @@
-services:
-  web:
-    build:
-      context: . # Cesta ke složce, kde je Dockerfile
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./app:/app
