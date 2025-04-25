@@ -1,0 +1,48 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+h1, h2 {
+    text-align: center;
+}
+
+canvas {
+    border: 1px solid #000;
+    margin: 10px 0;
+}
+
+#original, #workspace, #preview {
+    display: inline-block;
+    vertical-align: top;
+    margin: 10px;
+}
+
+#info {
+    margin: 20px 0;
+}
+
+.color-group {
+    margin: 10px 0;
+}
+
+.piece {
+    cursor: pointer;
+    padding: 5px;
+}
+
+.piece:hover {
+    background-color: #f0f0f0;
+}
+
+.error {
+    color: red;
+    margin: 10px 0;
+}
+
+button {
+    margin: 5px;
+    padding: 5px 10px;
+}

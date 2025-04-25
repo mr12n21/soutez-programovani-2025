@@ -8,3 +8,5 @@ services:
       - FLASK_ENV=production
     volumes:
       - .:/app
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
