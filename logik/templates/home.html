@@ -12,6 +12,16 @@
             <option value="4">4 kameny</option>
             <option value="5">5 kamenů</option>
         </select><br>
+        <label>Opakování barev:</label>
+        <select name="allow_repetition" id="allow_repetition">
+            <option value="yes">Ano</option>
+            <option value="no">Ne</option>
+        </select><br>
+        <label>Způsob hodnocení:</label>
+        <select name="evaluation_mode" id="evaluation_mode">
+            <option value="no_position" selected>Bez přesné pozice (černé/bílé kameny)</option>
+            <option value="exact_position">Přesná pozice (čísla)</option>
+        </select><br>
         <label><input type="checkbox" name="generate_random" checked id="generate_random"> Generovat náhodně</label><br>
         <div id="manual_input" style="display:none;">
             <label>Zadejte tajnou kombinaci:</label><br>

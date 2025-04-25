@@ -17,18 +17,24 @@
         </div>
         {% endif %}
         <table id="guesses-table">
-            {% for guess, black, white in guesses %}
+            {% for guess, feedback in guesses %}
             <tr>
                 {% for color_id in guess %}
                 <td><div class="stone color-{{ colors[color_id] | lower }}"></div></td>
                 {% endfor %}
                 <td class="feedback">
-                    {% for _ in range(black) %}
-                    <div class="peg black"></div>
-                    {% endfor %}
-                    {% for _ in range(white) %}
-                    <div class="peg white"></div>
-                    {% endfor %}
+                    {% if evaluation_mode == 'exact_position' %}
+                        {% for value in feedback %}
+                        <span class="feedback-number">{{ value }}</span>
+                        {% endfor %}
+                    {% else %}
+                        {% for _ in range(feedback[0]) %}
+                        <div class="peg black"></div>
+                        {% endfor %}
+                        {% for _ in range(feedback[1]) %}
+                        <div class="peg white"></div>
+                        {% endfor %}
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
