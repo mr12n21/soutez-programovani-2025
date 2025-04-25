@@ -70,68 +70,84 @@ def analyze_image(image_path):
     """Analyzuje obrázek vitráže a vrátí informace o sklíčkách."""
     # Načtení obrázku
     img = cv2.imread(image_path)
+    if img is None:
+        raise ValueError("Nepodařilo se načíst obrázek!")
+    
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Krok 1: Detekce černého ohraničení pomocí adaptivního prahování
-    thresh = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2
-    )
+    # Krok 1: Korekce kontrastu pro lepší detekci černých čar
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    gray = clahe.apply(gray)
 
-    # Krok 2: Morfologické operace pro zesílení černých čar
-    kernel = np.ones((3, 3), np.uint8)
-    dilated = cv2.dilate(thresh, kernel, iterations=2)
+    # Krok 2: Převod na HSV a detekce černých oblastí
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([180, 255, 30])  # Prah pro černou barvu
+    black_mask = cv2.inRange(hsv, lower_black, upper_black)
 
-    # Krok 3: Najdeme vnější hranici vitráže (největší černý obdélník)
+    # Krok 3: Redukce šumu a detekce hran
+    blurred = cv2.bilateralFilter(gray, 9, 75, 75)
+    edges = cv2.Canny(blurred, 50, 150)
+
+    # Kombinace Canny hran s maskou černých oblastí
+    edges = cv2.bitwise_and(edges, edges, mask=black_mask)
+
+    # Krok 4: Morfologické operace pro spojení černých čar
+    kernel = np.ones((7, 7), np.uint8)  # Větší kernel pro spojení přerušených čar
+    dilated = cv2.dilate(edges, kernel, iterations=3)
+    eroded = cv2.erode(dilated, kernel, iterations=1)
+
+    # Krok 5: Najdeme vnější hranici vitráže
     contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         raise ValueError("Nepodařilo se najít vnější hranici vitráže!")
 
-    # Největší kontura = vnější hranice vitráže
     outer_contour = max(contours, key=cv2.contourArea)
     mask_outer = np.zeros_like(gray)
     cv2.drawContours(mask_outer, [outer_contour], -1, 255, -1)
 
-    # Krok 4: Detekce vnitřních čar (ohraničení sklíček)
-    edges = cv2.Canny(dilated, 30, 100)
-    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    # Krok 6: Vytvoření markerů pro watershed
+    dist_transform = cv2.distanceTransform(eroded, cv2.DIST_L2, 5)
+    _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+    sure_fg = np.uint8(sure_fg)
 
-    # Krok 5: Segmentace sklíček pomocí watershed algoritmu
-    # Vytvoříme marker pro watershed
-    markers = np.zeros_like(gray, dtype=np.int32)
-    for idx, contour in enumerate(contours):
-        area = cv2.contourArea(contour)
-        if area < 50:  # Ignorujeme příliš malé kontury (šum)
-            continue
-        cv2.drawContours(markers, [contour], -1, (idx + 1), -1)
+    sure_bg = cv2.dilate(eroded, kernel, iterations=3)
+    sure_bg = cv2.erode(sure_bg, kernel, iterations=2)
+    unknown = cv2.subtract(sure_bg, sure_fg)
 
-    # Aplikujeme watershed
+    # Označení markerů
+    _, markers = cv2.connectedComponents(sure_fg)
+    markers = markers + 1  # Pozadí bude 1
+    markers[unknown == 255] = 0  # Neznámé oblasti označíme jako 0
+
+    # Krok 7: Aplikace watershed algoritmu
     cv2.watershed(img_rgb, markers)
     boundaries = (markers == -1).astype(np.uint8) * 255
 
-    # Krok 6: Identifikace jednotlivých sklíček
+    # Krok 8: Identifikace jednotlivých sklíček
     pieces = []
     color_groups = {}
     total_area = img.shape[0] * img.shape[1]
 
     unique_labels = np.unique(markers)
     for label in unique_labels:
-        if label <= 0:  # Ignorujeme pozadí a hranice
+        if label <= 1:  # Ignorujeme pozadí (1) a hranice (-1)
             continue
 
         # Vytvoříme masku pro dané sklíčko
         mask = (markers == label).astype(np.uint8) * 255
         area = cv2.countNonZero(mask)
-        if area < 50:  # Ignorujeme příliš malé oblasti
+        if area < 200:  # Zvýšený práh pro ignorování malých oblastí
             continue
 
         # Najdeme průměrnou barvu sklíčka
         masked_rgb = cv2.bitwise_and(img_rgb, img_rgb, mask=mask)
         mean_color = cv2.mean(masked_rgb, mask=mask)[:3]
-        mean_color = tuple(int(c) for c in mean_color if c > 0)  # Ignorujeme černou (0,0,0)
+        mean_color = tuple(int(c) for c in mean_color)
 
-        # Ignorujeme černé ohraničení
-        if mean_color == (0, 0, 0):
+        # Ignorujeme černé ohraničení (RGB blízké černé)
+        if all(c < 20 for c in mean_color):
             continue
 
         # Najdeme konturu sklíčka
@@ -145,13 +161,13 @@ def analyze_image(image_path):
         percent_area = (area / total_area) * 100
 
         piece = {
-            "id": int(label),  # Převod na int
-            "area": int(area),  # Převod na int
+            "id": int(label),
+            "area": int(area),
             "percent_area": round(percent_area, 2),
             "original_rgb": mean_color,
             "catalog_color": catalog_color_name,
             "catalog_rgb": catalog_rgb,
-            "contour": contour.tolist()  # Převod na seznam
+            "contour": contour.tolist()
         }
         pieces.append(piece)
 
@@ -280,7 +296,7 @@ def save_plan():
     try:
         data = request.get_json()
         plan = data['plan']
-        plan = convert_to_json_serializable(plan)  # Převod na JSON-serializovatelné typy
+        plan = convert_to_json_serializable(plan)
         plan_path = os.path.join(app.config['OUTPUT_FOLDER'], 'cutting_plan.json')
         with open(plan_path, 'w') as f:
             json.dump(plan, f)
@@ -311,6 +327,11 @@ def download(filename):
     """Umožní stažení souboru."""
     file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
     return send_file(file_path, as_attachment=True)
+
+@app.route('/uploads/<filename>')
+def serve_uploaded_file(filename):
+    """Umožní přístup k souborům v uploads složce."""
+    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

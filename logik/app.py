@@ -6,7 +6,7 @@ import logging
 app = Flask(__name__)
 app.secret_key = 'super_tajny_klic_logik_2025'
 
-# Nastavení logování
+#setup log
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -16,10 +16,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Admin heslo
+#admin password
 ADMIN_PASSWORD = "admin123"
 
-# Definice barev
+#colors definition
 COLORS = {
     1: "červená",
     2: "modrá",
@@ -42,10 +42,8 @@ def generate_secret(num_stones, allow_repetition):
 def evaluate_guess(secret, guess, evaluation_mode):
     """Vyhodnotí pokus podle zvoleného způsobu hodnocení."""
     if evaluation_mode == "exact_position":
-        # Přesná pozice: vrací seznam [1, 0, ...] pro každou pozici
         return [1 if secret[i] == guess[i] else 0 for i in range(len(secret))]
     else:
-        # Bez přesné pozice: vrací počet černých a bílých kamenů
         n = len(secret)
         black = sum(1 for i in range(n) if secret[i] == guess[i])
         S_prime = [secret[i] for i in range(n) if secret[i] != guess[i]]

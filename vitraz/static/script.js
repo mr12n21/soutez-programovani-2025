@@ -12,27 +12,49 @@ document.getElementById('upload-form').addEventListener('submit', function(e) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('HTTP status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Odpověď od backendu:', data);
+
         if (data.error) {
             document.getElementById('error-message').textContent = data.error;
+            console.error('Chyba v odpovědi:', data.error);
             return;
         }
 
-        pieces = data.pieces;
-        colorGroups = data.color_groups;
-        originalImage.src = data.image_path;
-        document.getElementById('content').style.display = 'block';
+        pieces = data.pieces || [];
+        colorGroups = data.color_groups || {};
+        originalImage.src = data.image_path || '';
+
+        if (pieces.length === 0) {
+            document.getElementById('error-message').textContent = 'Žádná sklíčka nenalezena.';
+            return;
+        }
+
+        if (!originalImage.src) {
+            document.getElementById('error-message').textContent = 'Chyba při načítání obrázku: Cesta k obrázku není platná.';
+            return;
+        }
 
         originalImage.onload = function() {
+            console.log('Obrázek načten:', originalImage.src);
+            document.getElementById('content').style.display = 'block';
             setupCanvases();
             displayInfo();
             drawOriginal();
         };
+
+        originalImage.onerror = function() {
+            document.getElementById('error-message').textContent = 'Nepodařilo se načíst obrázek: ' + originalImage.src;
+            console.error('Chyba při načítání obrázku:', originalImage.src);
+        };
     })
     .catch(error => {
         document.getElementById('error-message').textContent = 'Chyba při analýze: ' + error.message;
-        console.error('Chyba:', error);
+        console.error('Chyba při fetch:', error);
     });
 });
 
@@ -40,6 +62,12 @@ function setupCanvases() {
     const originalCanvas = document.getElementById('original-canvas');
     const workspaceCanvas = document.getElementById('workspace-canvas');
     const previewCanvas = document.getElementById('preview-canvas');
+
+    if (!originalCanvas || !workspaceCanvas || !previewCanvas) {
+        console.error('Plátna nenalezena!');
+        document.getElementById('error-message').textContent = 'Chyba: Plátna (canvas) nenalezena v HTML.';
+        return;
+    }
 
     originalCanvas.width = originalImage.width;
     originalCanvas.height = originalImage.height;
@@ -57,6 +85,12 @@ function setupCanvases() {
 
 function displayInfo() {
     const colorGroupsDiv = document.getElementById('color-groups');
+    if (!colorGroupsDiv) {
+        console.error('Element #color-groups nenalezen!');
+        document.getElementById('error-message').textContent = 'Chyba: Element #color-groups nenalezen v HTML.';
+        return;
+    }
+
     colorGroupsDiv.innerHTML = '';
     for (const [color, group] of Object.entries(colorGroups)) {
         const groupDiv = document.createElement('div');
@@ -71,6 +105,7 @@ function displayInfo() {
         });
         colorGroupsDiv.appendChild(groupDiv);
     }
+    console.log('Informace o barvách zobrazeny:', colorGroups);
 }
 
 function drawOriginal(highlightColor = null) {
@@ -130,13 +165,14 @@ function replaceColor(pieceId) {
     })
     .then(response => response.json())
     .then(data => {
-        pieces = data.pieces;
-        colorGroups = data.color_groups;
+        pieces = data.pieces || [];
+        colorGroups = data.color_groups || {};
         displayInfo();
         drawOriginal();
     })
     .catch(error => {
         console.error('Chyba při náhradě barvy:', error);
+        document.getElementById('error-message').textContent = 'Chyba při náhradě barvy: ' + error.message;
     });
 }
 
@@ -167,7 +203,6 @@ function startDragging(e) {
     }
 
     if (!draggedPiece) {
-        // Přidání nového sklíčka na pracovní plochu
         for (const piece of pieces) {
             const path = new Path2D();
             piece.contour.forEach((point, idx) => {
@@ -209,7 +244,6 @@ function dragPiece(e) {
 
 function stopDragging() {
     if (draggedPiece) {
-        // Možnost otočení při uvolnění
         if (confirm('Otočit sklíčko o 90°?')) {
             draggedPiece.rotation = (draggedPiece.rotation + 90) % 360;
         }
@@ -257,6 +291,7 @@ document.getElementById('save-plan').addEventListener('click', function() {
     })
     .catch(error => {
         console.error('Chyba při ukládání plánu:', error);
+        document.getElementById('error-message').textContent = 'Chyba při ukládání plánu: ' + error.message;
     });
 });
 
@@ -278,6 +313,7 @@ document.getElementById('generate-replica').addEventListener('click', function()
     })
     .catch(error => {
         console.error('Chyba při generování repliky:', error);
+        document.getElementById('error-message').textContent = 'Chyba při generování repliky: ' + error.message;
     });
 });
 
@@ -293,7 +329,6 @@ function drawPreview(replicaPath = null) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Původní vitráž vlevo
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, previewSplitX, canvas.height);
@@ -301,7 +336,6 @@ function drawPreview(replicaPath = null) {
     ctx.drawImage(originalImage, 0, 0);
     ctx.restore();
 
-    // Replika vpravo
     if (replicaPath) {
         const replicaImage = new Image();
         replicaImage.src = replicaPath;
@@ -312,6 +346,9 @@ function drawPreview(replicaPath = null) {
             ctx.clip();
             ctx.drawImage(replicaImage, 0, 0);
             ctx.restore();
+        };
+        replicaImage.onerror = function() {
+            document.getElementById('error-message').textContent = 'Nepodařilo se načíst repliku: ' + replicaPath;
         };
     }
 }
