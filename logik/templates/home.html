@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Logik - Nová hra</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Logik</h1>
+    <form id="new-game-form">
+        <label>Obtížnost:</label>
+        <select name="difficulty" id="difficulty">
+            <option value="4">4 kameny</option>
+            <option value="5">5 kamenů</option>
+        </select><br>
+        <label><input type="checkbox" name="generate_random" checked id="generate_random"> Generovat náhodně</label><br>
+        <div id="manual_input" style="display:none;">
+            <label>Zadejte tajnou kombinaci:</label><br>
+            <div id="secret_inputs">
+                {% for _ in range(5) %}
+                <select name="secret" class="secret_select">
+                    <option value="" disabled selected>Vyberte barvu</option>
+                    {% for id, color in colors.items() %}
+                    <option value="{{ color }}">{{ color }}</option>
+                    {% endfor %}
+                </select>
+                {% endfor %}
+            </div>
+        </div>
+        <button type="submit">Spustit hru</button>
+    </form>
+    <div id="error-message" class="error"></div>
+    <script src="/static/script.js"></script>
+    <script>
+        document.getElementById('new-game-form').addEventListener('submit', startNewGame);
+    </script>
+</body>
+</html>
