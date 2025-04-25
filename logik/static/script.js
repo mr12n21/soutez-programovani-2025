@@ -39,7 +39,7 @@ function submitGuess(event) {
         
         const table = document.getElementById('guesses-table');
         table.innerHTML = '';
-        data.guesses.forEach(([guess, black, white]) => {
+        data.guesses.forEach(([guess, feedback]) => {
             const row = document.createElement('tr');
             guess.forEach(color_id => {
                 const cell = document.createElement('td');
@@ -50,15 +50,24 @@ function submitGuess(event) {
             });
             const feedbackCell = document.createElement('td');
             feedbackCell.className = 'feedback';
-            for (let i = 0; i < black; i++) {
-                const peg = document.createElement('div');
-                peg.className = 'peg black';
-                feedbackCell.appendChild(peg);
-            }
-            for (let i = 0; i < white; i++) {
-                const peg = document.createElement('div');
-                peg.className = 'peg white';
-                feedbackCell.appendChild(peg);
+            if (data.evaluation_mode === 'exact_position') {
+                feedback.forEach(value => {
+                    const number = document.createElement('span');
+                    number.className = 'feedback-number';
+                    number.textContent = value;
+                    feedbackCell.appendChild(number);
+                });
+            } else {
+                for (let i = 0; i < feedback[0]; i++) {
+                    const peg = document.createElement('div');
+                    peg.className = 'peg black';
+                    feedbackCell.appendChild(peg);
+                }
+                for (let i = 0; i < feedback[1]; i++) {
+                    const peg = document.createElement('div');
+                    peg.className = 'peg white';
+                    feedbackCell.appendChild(peg);
+                }
             }
             row.appendChild(feedbackCell);
             table.appendChild(row);

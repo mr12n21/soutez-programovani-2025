@@ -20,6 +20,17 @@ body {
     margin: 2px;
 }
 
+.feedback-number {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border: 1px solid #000;
+    margin: 2px;
+    font-size: 14px;
+}
+
 .color-červená { background-color: #FF0000; }
 .color-modrá { background-color: #0000FF; }
 .color-zelená { background-color: #00FF00; }
