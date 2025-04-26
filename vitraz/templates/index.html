@@ -1,36 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="cs">
 <head>
-    <title>Vitráž - Analýza a Replika</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vitrážový analyzátor</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Vitráž - Analýza a Replika</h1>
+    <h1>Vitrážový analyzátor</h1>
     <form id="upload-form" enctype="multipart/form-data">
-        <label for="image">Nahrajte obrázek vitráže:</label>
-        <input type="file" id="image" name="image" accept="image/*" required>
-        <button type="submit">Analyzovat</button>
+        <input type="file" name="image" accept="image/*" required>
+        <button type="submit">Nahrát obrázek</button>
     </form>
-    <div id="error-message" class="error"></div>
+    <div id="error-message" style="color: red;"></div>
     <div id="content" style="display: none;">
-        <div id="original">
-            <h2>Původní vitráž</h2>
-            <canvas id="original-canvas"></canvas>
+        <div id="canvases">
+            <div>
+                <h2>Původní vitráž</h2>
+                <canvas id="original-canvas"></canvas>
+            </div>
+            <div>
+                <h2>Pracovní plocha</h2>
+                <canvas id="workspace-canvas"></canvas>
+            </div>
+            <div>
+                <h2>Náhled repliky</h2>
+                <canvas id="preview-canvas"></canvas>
+            </div>
         </div>
-        <div id="info">
-            <h2>Informace o sklíčkách</h2>
-            <div id="color-groups"></div>
-        </div>
-        <div id="workspace">
-            <h2>Pracovní plocha</h2>
-            <canvas id="workspace-canvas"></canvas>
-            <button id="save-plan">Uložit řezací plán</button>
-            <button id="generate-replica">Vygenerovat repliku</button>
-        </div>
-        <div id="preview">
-            <h2>Náhled</h2>
-            <canvas id="preview-canvas"></canvas>
-        </div>
+        <div id="color-groups"></div>
+        <button id="save-plan">Uložit řezací plán</button>
+        <button id="generate-replica">Stáhnout repliku</button>
     </div>
     <script src="/static/script.js"></script>
 </body>

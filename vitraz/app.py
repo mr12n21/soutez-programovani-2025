@@ -6,6 +6,7 @@ import os
 import json
 import logging
 from io import BytesIO
+from record_manager import RecordManager
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -21,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Katalog barev z PDF
+# Katalog barev
 COLOR_CATALOG = {
     "maroon": (128, 0, 0),
     "red": (255, 0, 0),
@@ -41,8 +42,10 @@ COLOR_CATALOG = {
     "silver": (192, 192, 192)
 }
 
+# Inicializace RecordManager
+record_manager = RecordManager()
+
 def convert_to_json_serializable(obj):
-    """Převede NumPy typy na standardní Python typy pro JSON serializaci."""
     if isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
@@ -56,7 +59,6 @@ def convert_to_json_serializable(obj):
     return obj
 
 def find_closest_color(rgb):
-    """Najde nejbližší barvu z katalogu podle Euklidovské vzdálenosti."""
     min_dist = float('inf')
     closest_color = None
     for name, catalog_rgb in COLOR_CATALOG.items():
@@ -67,8 +69,6 @@ def find_closest_color(rgb):
     return closest_color, COLOR_CATALOG[closest_color]
 
 def analyze_image(image_path):
-    """Analyzuje obrázek vitráže a vrátí informace o sklíčkách."""
-    # Načtení obrázku
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError("Nepodařilo se načíst obrázek!")
@@ -76,92 +76,50 @@ def analyze_image(image_path):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Krok 1: Korekce kontrastu pro lepší detekci černých čar
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-    gray = clahe.apply(gray)
-
-    # Krok 2: Převod na HSV a detekce černých oblastí
+    # Převod na HSV a detekce černých linií
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     lower_black = np.array([0, 0, 0])
-    upper_black = np.array([180, 255, 20])  # Snížený práh pro černou barvu
+    upper_black = np.array([180, 255, 15])
     black_mask = cv2.inRange(hsv, lower_black, upper_black)
 
-    # Krok 3: Redukce šumu a detekce hran
-    blurred = cv2.bilateralFilter(gray, 9, 75, 75)
-    edges = cv2.Canny(blurred, 30, 100)  # Nižší prahy pro citlivější detekci hran
+    # Morfologické operace
+    kernel = np.ones((5, 5), np.uint8)
+    black_mask = cv2.dilate(black_mask, kernel, iterations=2)
+    black_mask = cv2.erode(black_mask, kernel, iterations=1)
 
-    # Kombinace Canny hran s maskou černých oblastí
-    edges = cv2.bitwise_and(edges, edges, mask=black_mask)
+    # Binární maska
+    binary_mask = cv2.bitwise_not(black_mask)
 
-    # Krok 4: Morfologické operace pro spojení černých čar
-    kernel = np.ones((5, 5), np.uint8)  # Menší kernel pro přesnější detekci
-    dilated = cv2.dilate(edges, kernel, iterations=3)
-    eroded = cv2.erode(dilated, kernel, iterations=1)
-
-    # Krok 5: Najdeme vnější hranici vitráže
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Detekce kontur
+    contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        raise ValueError("Nepodařilo se najít vnější hranici vitráže!")
+        raise ValueError("Žádné sklíčka nenalezeny!")
 
-    outer_contour = max(contours, key=cv2.contourArea)
-    mask_outer = np.zeros_like(gray)
-    cv2.drawContours(mask_outer, [outer_contour], -1, 255, -1)
-
-    # Krok 6: Vytvoření markerů pro watershed
-    dist_transform = cv2.distanceTransform(eroded, cv2.DIST_L2, 5)
-    _, sure_fg = cv2.threshold(dist_transform, 0.5 * dist_transform.max(), 255, 0)  # Nižší práh pro více markerů
-    sure_fg = np.uint8(sure_fg)
-
-    sure_bg = cv2.dilate(eroded, kernel, iterations=3)
-    sure_bg = cv2.erode(sure_bg, kernel, iterations=2)
-    unknown = cv2.subtract(sure_bg, sure_fg)
-
-    # Označení markerů
-    _, markers = cv2.connectedComponents(sure_fg)
-    markers = markers + 1  # Pozadí bude 1
-    markers[unknown == 255] = 0  # Neznámé oblasti označíme jako 0
-
-    # Krok 7: Aplikace watershed algoritmu
-    cv2.watershed(img_rgb, markers)
-    boundaries = (markers == -1).astype(np.uint8) * 255
-
-    # Krok 8: Identifikace jednotlivých sklíček
     pieces = []
     color_groups = {}
     total_area = img.shape[0] * img.shape[1]
+    piece_id = 1
 
-    unique_labels = np.unique(markers)
-    for label in unique_labels:
-        if label <= 1:  # Ignorujeme pozadí (1) a hranice (-1)
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < 100:
             continue
 
-        # Vytvoříme masku pro dané sklíčko
-        mask = (markers == label).astype(np.uint8) * 255
-        area = cv2.countNonZero(mask)
-        if area < 100:  # Snížený práh pro zachycení menších sklíček
-            continue
+        mask = np.zeros_like(gray)
+        cv2.drawContours(mask, [contour], -1, 255, -1)
 
-        # Najdeme průměrnou barvu sklíčka
         masked_rgb = cv2.bitwise_and(img_rgb, img_rgb, mask=mask)
         mean_color = cv2.mean(masked_rgb, mask=mask)[:3]
         mean_color = tuple(int(c) for c in mean_color)
 
-        # Ignorujeme černé ohraničení (RGB blízké černé)
         if all(c < 15 for c in mean_color):
             continue
 
-        # Najdeme konturu sklíčka
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            continue
-        contour = contours[0]
-
-        # Najdeme nejbližší barvu z katalogu
         catalog_color_name, catalog_rgb = find_closest_color(mean_color)
         percent_area = (area / total_area) * 100
 
         piece = {
-            "id": int(label),
+            "id": piece_id,
             "area": int(area),
             "percent_area": round(percent_area, 2),
             "original_rgb": mean_color,
@@ -169,29 +127,33 @@ def analyze_image(image_path):
             "catalog_rgb": catalog_rgb,
             "contour": contour.tolist()
         }
-        pieces.append(piece)
 
-        # Seskupení podle barvy
+        # Uložení záznamu pomocí RecordManager
+        record_manager.on_create(piece_id, piece)
+
+        pieces.append(piece)
+        piece_id += 1
+
         if catalog_color_name not in color_groups:
             color_groups[catalog_color_name] = {"pieces": [], "total_area": 0, "percent_area": 0}
         color_groups[catalog_color_name]["pieces"].append(piece)
         color_groups[catalog_color_name]["total_area"] += area
 
-    # Aktualizace procentuální plochy pro skupiny
     for color, group in color_groups.items():
         group["percent_area"] = round((group["total_area"] / total_area) * 100, 2)
 
     if not pieces:
         raise ValueError("Žádná sklíčka nenalezena!")
 
-    # Převod na JSON-serializovatelné typy
     pieces = convert_to_json_serializable(pieces)
     color_groups = convert_to_json_serializable(color_groups)
+
+    cv2.imwrite(os.path.join(app.config['OUTPUT_FOLDER'], 'black_mask.png'), black_mask)
+    cv2.imwrite(os.path.join(app.config['OUTPUT_FOLDER'], 'binary_mask.png'), binary_mask)
 
     return pieces, color_groups, img_rgb
 
 def create_replica(image_path, pieces):
-    """Vytvoří repliku vitráže s dostupnými barvami."""
     img = cv2.imread(image_path)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -199,7 +161,7 @@ def create_replica(image_path, pieces):
         contour = np.array(piece["contour"], dtype=np.int32)
         color = piece["catalog_rgb"]
         cv2.drawContours(img_rgb, [contour], -1, color, -1)
-        cv2.drawContours(img_rgb, [contour], -1, (0, 0, 0), 2)  # Černé okraje
+        cv2.drawContours(img_rgb, [contour], -1, (0, 0, 0), 1)
 
     replica_path = os.path.join(app.config['OUTPUT_FOLDER'], 'replica.png')
     cv2.imwrite(replica_path, cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR))
@@ -207,13 +169,11 @@ def create_replica(image_path, pieces):
 
 @app.route('/')
 def index():
-    """Domovská stránka."""
     logger.info("Navštívena domovská stránka.")
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    """Zpracuje nahrání obrázku a analýzu."""
     try:
         if 'image' not in request.files:
             return jsonify({"error": "Žádný obrázek nenahrán!"}), 400
@@ -229,7 +189,6 @@ def upload():
             "image_shape": img_rgb.shape[:2]
         }
 
-        # Převod na JSON-serializovatelné typy
         session_data = convert_to_json_serializable(session_data)
 
         with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'w') as f:
@@ -247,7 +206,6 @@ def upload():
 
 @app.route('/replace_color', methods=['POST'])
 def replace_color():
-    """Nahradí barvu sklíčka zvolenou uživatelem."""
     try:
         data = request.get_json()
         piece_id = data['piece_id']
@@ -261,6 +219,7 @@ def replace_color():
             if piece['id'] == piece_id:
                 piece['catalog_color'] = new_color
                 piece['catalog_rgb'] = COLOR_CATALOG[new_color]
+                record_manager.on_update(piece_id, piece)
                 break
 
         color_groups = {}
@@ -277,7 +236,6 @@ def replace_color():
         session_data['pieces'] = pieces
         session_data['color_groups'] = color_groups
 
-        #prevod na json serializovaneho typu
         session_data = convert_to_json_serializable(session_data)
 
         with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'w') as f:
@@ -289,13 +247,50 @@ def replace_color():
         logger.error(f"Chyba při náhradě barvy: {str(e)}")
         return jsonify({"error": "Chyba při náhradě barvy! Zkuste znovu."}), 500
 
+@app.route('/delete_piece', methods=['POST'])
+def delete_piece():
+    try:
+        data = request.get_json()
+        piece_id = data['piece_id']
+
+        with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'r') as f:
+            session_data = json.load(f)
+
+        pieces = session_data['pieces']
+        pieces = [piece for piece in pieces if piece['id'] != piece_id]
+
+        color_groups = {}
+        total_area = session_data['image_shape'][0] * session_data['image_shape'][1]
+        for piece in pieces:
+            color = piece['catalog_color']
+            if color not in color_groups:
+                color_groups[color] = {"pieces": [], "total_area": 0, "percent_area": 0}
+            color_groups[color]["pieces"].append(piece)
+            color_groups[color]["total_area"] += piece['area']
+        for color, group in color_groups.items():
+            group["percent_area"] = round((group["total_area"] / total_area) * 100, 2)
+
+        session_data['pieces'] = pieces
+        session_data['color_groups'] = color_groups
+
+        record_manager.on_delete(piece_id)
+
+        session_data = convert_to_json_serializable(session_data)
+
+        with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'w') as f:
+            json.dump(session_data, f)
+
+        logger.info(f"Sklíčko {piece_id} smazáno")
+        return jsonify({"pieces": pieces, "color_groups": color_groups})
+    except Exception as e:
+        logger.error(f"Chyba při mazání sklíčka: {str(e)}")
+        return jsonify({"error": "Chyba při mazání sklíčka! Zkuste znovu."}), 500
+
 @app.route('/save_plan', methods=['POST'])
 def save_plan():
-    """Uloží řezací plán."""
     try:
         data = request.get_json()
         plan = data['plan']
-        logger.info(f"Přijatý řezací plán: {plan}") #log pro debug
         plan = convert_to_json_serializable(plan)
         plan_path = os.path.join(app.config['OUTPUT_FOLDER'], 'cutting_plan.json')
         with open(plan_path, 'w') as f:
@@ -308,7 +303,6 @@ def save_plan():
 
 @app.route('/generate_replica', methods=['POST'])
 def generate_replica():
-    """Vygeneruje repliku vitráže."""
     try:
         with open(os.path.join(app.config['OUTPUT_FOLDER'], 'session.json'), 'r') as f:
             session_data = json.load(f)
@@ -324,13 +318,11 @@ def generate_replica():
 
 @app.route('/download/<filename>')
 def download(filename):
-    """Umožní stažení souboru."""
     file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
     return send_file(file_path, as_attachment=True)
 
 @app.route('/uploads/<filename>')
 def serve_uploaded_file(filename):
-    """Umožní přístup k souborům v uploads složce."""
     return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
 if __name__ == '__main__':
