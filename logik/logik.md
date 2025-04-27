@@ -1,8 +1,3 @@
-
-# Project Title
-
-A brief description of what this project does and who it's for
-
 # LOGIK
 Logik je webová logická hra vytvořená v Pythonu s použitím frameworku Flask. Hráč hádá tajnou kombinaci barev (4 nebo 5 kamenů) a dostává zpětnou vazbu buď formou černých/bílých kamenů (bez přesné pozice), nebo čísel (přesná pozice). Hra podporuje opakování barev, různé obtížnosti a administrátorský přístup pro zobrazení tajné kombinace.
 
@@ -17,33 +12,33 @@ Hra je zabalena do Docker kontejneru a používá Docker Compose pro snadné spu
 - Docker Compose
 
 #### Kroky pro build a spuštění
-- docker-compose build
-- docker-compose up
+    docker-compose build
+    docker-compose up
 
 Tento příkaz spustí Flask aplikaci na portu 5000. Pro spuštění na pozadí použijte:
 
-- docker-compose up -d
+    docker-compose up -d
 
 Zastavení kontejneru:
 
-- docker-compose down
+    docker-compose down
 
 ### Jak začít hrát
 Otevřete prohlížeč a přejděte na:
 
-- http://localhost:5000
+    http://localhost:5000
 
 #### Na domovské stránce:
 
-    Vyberte obtížnost (4 nebo 5 kamenů).
-    Zvolte, zda mohou být barvy opakovány (Ano nebo Ne).
+Vyberte obtížnost (4 nebo 5 kamenů).
+Zvolte, zda mohou být barvy opakovány (Ano nebo Ne).
 
 #### Vyberte způsob hodnocení:
 
-    Bez přesné pozice (výchozí, černé/bílé kameny).
-    Přesná pozice (čísla 1 pro správnou barvu a pozici, 0 jinak).
-    Zaškrtněte „Generovat náhodně“ nebo zadejte vlastní kombinaci.
-    Klikněte na Spustit hru pro přechod na herní plochu.
+Bez přesné pozice (výchozí, černé/bílé kameny).
+Přesná pozice (čísla 1 pro správnou barvu a pozici, 0 jinak).
+Zaškrtněte „Generovat náhodně“ nebo zadejte vlastní kombinaci.
+Klikněte na Spustit hru pro přechod na herní plochu.
 
 #### Na herní ploše:
 
