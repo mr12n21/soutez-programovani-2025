@@ -8,4 +8,4 @@ services:
     volumes:
       - .:/app
       - ./uploads:/app/uploads
-      - ./outputs:/app/outputs
+      - ./outputs:/app/outputs  
