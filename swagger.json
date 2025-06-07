@@ -1,0 +1,612 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Soutez_CTF.Server",
+    "version": "1.0"
+  },
+  "paths": {
+    "/Game/CreateSession": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBotSessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBotSessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBotSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewSessionResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewSessionResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewSessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Game/State": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EPlayerState"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EPlayerState"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EPlayerState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Game/Map": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameMap"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameMap"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameMap"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Game/Entities": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GameEntity"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GameEntity"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GameEntity"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Game/Move": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayMoveRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayMoveRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayMoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "boolean"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Game/Score": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "Red": {
+                      "type": "number",
+                      "format": "double"
+                    },
+                    "Blue": {
+                      "type": "number",
+                      "format": "double"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "Red": {
+                      "type": "number",
+                      "format": "double"
+                    },
+                    "Blue": {
+                      "type": "number",
+                      "format": "double"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "Red": {
+                      "type": "number",
+                      "format": "double"
+                    },
+                    "Blue": {
+                      "type": "number",
+                      "format": "double"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Game/AllMaps": {
+      "post": {
+        "tags": [
+          "Game"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EGameCellType": {
+        "enum": [
+          "Empty",
+          "Wall"
+        ],
+        "type": "string"
+      },
+      "EGameEntityType": {
+        "enum": [
+          "Unknown",
+          "Base",
+          "Player",
+          "Flag"
+        ],
+        "type": "string"
+      },
+      "EPlayerState": {
+        "enum": [
+          "Waiting",
+          "Ready",
+          "GameOver"
+        ],
+        "type": "string"
+      },
+      "ESessionType": {
+        "enum": [
+          "Manual",
+          "Ai"
+        ],
+        "type": "string"
+      },
+      "ETeamColor": {
+        "enum": [
+          "Red",
+          "Blue"
+        ],
+        "type": "string"
+      },
+      "GameCell": {
+        "required": [
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/EGameCellType"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameEntity": {
+        "required": [
+          "location",
+          "teamColor",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "gameEntityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "teamColor": {
+            "$ref": "#/components/schemas/ETeamColor"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EGameEntityType"
+          },
+          "location": {
+            "$ref": "#/components/schemas/GamePoint"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameMap": {
+        "required": [
+          "cells",
+          "height",
+          "width"
+        ],
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameCell"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GamePoint": {
+        "required": [
+          "x",
+          "y"
+        ],
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "y": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NewBotSessionRequest": {
+        "required": [
+          "mapName",
+          "playerId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "mapName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ESessionType"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NewSessionResponse": {
+        "required": [
+          "sessionId",
+          "teamsColor"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamsColor": {
+            "$ref": "#/components/schemas/ETeamColor"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlayMoveRequest": {
+        "required": [
+          "direction",
+          "playerId",
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sessionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "direction": {
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlayerRequest": {
+        "required": [
+          "playerId"
+        ],
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionRequest": {
+        "required": [
+          "playerId",
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sessionId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
