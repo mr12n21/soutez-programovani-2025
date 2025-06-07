@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="cs">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Vlajkobití - Hra</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            .hexagon {
+                position: relative;
+                width: 100px;
+                height: 115px; /* Výška pro šestiúhelník s úhlem 30° */
+                background-color: #3b82f6;
+                clip-path: polygon(
+                    50% 0%,
+                    100% 25%,
+                    100% 75%,
+                    50% 100%,
+                    0% 75%,
+                    0% 25%
+                );
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 1.5rem;
+                font-weight: bold;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }
+            .hexagon:hover {
+                background-color: #2563eb;
+            }
+            .hexagon:disabled {
+                background-color: #60a5fa;
+                cursor: not-allowed;
+            }
+            .hex-container {
+                display: grid;
+                grid-template-columns: repeat(3, 100px);
+                grid-gap: -30px; /* Překrytí pro hexagony */
+                justify-content: center;
+            }
+            .center-hex {
+                grid-column: 2;
+                grid-row: 2;
+                background-color: #1e40af;
+                pointer-events: none;
+            }
+            .player-icon {
+                font-size: 2rem;
+            }
+        </style>
+        <script>
+            let timeLeft = 60;
+            let timer;
+            let gameWindow = null;
+
+            function startTimer() {
+                timeLeft = 60;
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    document.getElementById('timer').textContent = timeLeft;
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        alert('Čas na tah vypršel!');
+                    }
+                }, 1000);
+            }
+
+            function openGameWindow() {
+                if (gameWindow && !gameWindow.closed) {
+                    gameWindow.focus();
+                } else {
+                    gameWindow = window.open('{{ game_url }}', 'GameWindow', 'width=800,height=600');
+                    if (!gameWindow || gameWindow.closed) {
+                        alert('Nelze otevřít nové okno. Prosím, povolte vyskakovací okna.');
+                    }
+                }
+            }
+
+            async function makeMove(direction) {
+                try {
+                    const response = await fetch('/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            playerId: '{{ player_id }}',
+                            sessionId: '{{ session_id }}',
+                            direction: direction
+                        })
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP chyba: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.state === 'Ready') {
+                        startTimer();
+                        document.getElementById('state').textContent = 'Jste na tahu!';
+                    } else if (data.state === 'Waiting') {
+                        clearInterval(timer);
+                        document.getElementById('state').textContent = 'Čeká se na soupeře...';
+                        pollState();
+                    } else if (data.state === 'GameOver') {
+                        clearInterval(timer);
+                        document.getElementById('state').textContent = 'Hra skončila!';
+                        displayWinner(data.score);
+                    }
+                    if (gameWindow && !gameWindow.closed) {
+                        gameWindow.location.reload(); // Aktualizace okna po tahu
+                    }
+                } catch (error) {
+                    alert(`Chyba při provádění tahu: ${error.message}`);
+                }
+            }
+
+            function displayWinner(score) {
+                if (score) {
+                    const redScore = score.Red || 0;
+                    const blueScore = score.Blue || 0;
+                    let winner = 'Remíza';
+                    if (redScore > blueScore) winner = 'Červený tým';
+                    else if (blueScore > redScore) winner = 'Modrý tým';
+                    document.getElementById('winner').textContent = `Vítěz: ${winner} (Červený: ${redScore}, Modrý: ${blueScore})`;
+                    document.getElementById('winner').classList.remove('hidden');
+                }
+            }
+
+            async function pollState() {
+                try {
+                    const response = await fetch('/game-state');
+                    if (!response.ok) {
+                        throw new Error(`HTTP chyba: ${response.status}`);
+                    }
+                    const html = await response.text();
+                    document.body.innerHTML = html;
+                    if (document.getElementById('state').textContent === 'Jste na tahu!') {
+                        startTimer();
+                    } else if (document.getElementById('state').textContent === 'Hra skončila!') {
+                        displayWinner({{ score|tojson|safe }});
+                    }
+                    openGameWindow(); // Zajištění, že okno zůstane otevřené
+                } catch (error) {
+                    alert(`Chyba při načítání stavu: ${error.message}`);
+                }
+            }
+
+            window.onload = () => {
+                openGameWindow(); // Otevření nového okna při načtení stránky
+                if ('{{ state }}' === 'Ready') {
+                    startTimer();
+                } else if ('{{ state }}' === 'Waiting') {
+                    pollState();
+                } else if ('{{ state }}' === 'GameOver') {
+                    displayWinner({{ score|tojson|safe }});
+                }
+            };
+
+            window.onbeforeunload = () => {
+                if (gameWindow && !gameWindow.closed) {
+                    gameWindow.close();
+                }
+            };
+        </script>
+    </head>
+    <body class="bg-gray-100 flex flex-col items-center h-screen">
+        <div
+            class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl text-center"
+        >
+            <h1 class="text-2xl font-bold mb-4">
+                Vlajkobití - Session ID: {{ session_id }}
+            </h1>
+            <p class="mb-2">Tým: {{ teams_color }}</p>
+            <p id="state" class="mb-2">
+                {% if state == 'Ready' %} Jste na tahu! {% elif state ==
+                'Waiting' %} Čeká se na soupeře... {% else %} Hra skončila! {%
+                endif %}
+            </p>
+            <p id="timer" class="mb-4">60</p>
+            <div class="hex-container mb-4">
+                <button
+                    class="hexagon"
+                    onclick="makeMove(6)"
+                    {%
+                    if
+                    state
+                    !="Ready"
+                    %}disabled{%
+                    endif
+                    %}
+                >
+                    6
+                </button>
+                <button
+                    class="hexagon"
+                    onclick="makeMove(1)"
+                    {%
+                    if
+                    state
+                    !="Ready"
+                    %}disabled{%
+                    endif
+                    %}
+                >
+                    1
+                </button>
+                <button
+                    class="hexagon"
+                    onclick="makeMove(2)"
+                    {%
+                    if
+                    state
+                    !="Ready"
+                    %}disabled{%
+                    endif
+                    %}
+                >
+                    2
+                </button>
+                <button class="hexagon center-hex">
+                    <span class="player-icon">👤</span>
+                </button>
+                <button
+                    class="hexagon"
+                    onclick="makeMove(5)"
+                    {%
+                    if
+                    state
+                    !="Ready"
+                    %}disabled{%
+                    endif
+                    %}
+                >
+                    5
+                </button>
+                <button
+                    class="hexagon"
+                    onclick="makeMove(4)"
+                    {%
+                    if
+                    state
+                    !="Ready"
+                    %}disabled{%
+                    endif
+                    %}
+                >
+                    4
+                </button>
+                <button
+                    class="hexagon"
+                    onclick="makeMove(3)"
+                    {%
+                    if
+                    state
+                    !="Ready"
+                    %}disabled{%
+                    endif
+                    %}
+                >
+                    3
+                </button>
+            </div>
+            <p class="text-gray-600">
+                Herní pole je otevřeno v novém okně. Používejte tlačítka pro
+                tahy.
+            </p>
+            <p id="winner" class="mt-4 text-lg font-bold hidden"></p>
+        </div>
+    </body>
+</html>

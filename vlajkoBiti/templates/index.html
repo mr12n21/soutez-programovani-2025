@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="cs">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Vlajkobití - Výběr mapy</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100 flex items-center justify-center h-screen">
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h1 class="text-2xl font-bold mb-4">Vyberte mapu a typ hry</h1>
+            <form action="/start-game" method="post" class="space-y-4">
+                <select name="map_name" class="w-full p-2 border rounded">
+                    {% for map in maps %}
+                    <option value="{{ map }}">{{ map }}</option>
+                    {% endfor %}
+                </select>
+                <select name="game_type" class="w-full p-2 border rounded">
+                    <option value="Manual">Manuální hra</option>
+                    <option value="Ai">Hra s AI</option>
+                </select>
+                <button
+                    type="submit"
+                    class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                >
+                    Spustit hru
+                </button>
+            </form>
+        </div>
+    </body>
+</html>
