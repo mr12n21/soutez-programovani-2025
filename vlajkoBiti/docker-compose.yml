@@ -1,10 +1,12 @@
-version: '3.8'
+version: "3.8"
 services:
-  web:
-    build: .
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "5000:5000"
-    environment:
-      - FLASK_ENV=production
+      - "8000:8000"
     volumes:
-      - .:/app
+      - ./:/app
+    environment:
+      - PYTHONUNBUFFERED=1
