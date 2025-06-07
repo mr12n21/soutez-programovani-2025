@@ -16,7 +16,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-#admin password
 ADMIN_PASSWORD = "admin123"
 
 #colors definition
@@ -107,9 +106,9 @@ def game():
         logger.warning("Přístup k /game bez aktivní hry.")
         return redirect(url_for('home'))
     logger.info("Navštívena herní stránka.")
-    return render_template('game.html', 
-                         num_stones=session['num_stones'], 
-                         guesses=session.get('guesses', []), 
+    return render_template('game.html',
+                         num_stones=session['num_stones'],
+                         guesses=session.get('guesses', []),
                          colors=COLORS,
                          game_over=session.get('game_over', False),
                          secret=session.get('secret', []),
@@ -144,7 +143,7 @@ def make_guess():
         evaluation_mode = session.get('evaluation_mode', 'no_position')
         feedback = evaluate_guess(secret, guess, evaluation_mode)
         session['guesses'].append((guess, feedback))
-        
+
         remaining_attempts = 10 - len(session['guesses'])
         secret_names = [COLORS[id] for id in secret]
         guess_names = [COLORS[id] for id in guess]
@@ -182,7 +181,7 @@ def make_guess():
                 "secret": secret,
                 "evaluation_mode": evaluation_mode
             })
-        
+
         logger.info("Hra pokračuje.")
         return jsonify({
             "guesses": session['guesses'],
